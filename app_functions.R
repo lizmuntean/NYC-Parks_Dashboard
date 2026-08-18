@@ -1,28 +1,41 @@
-preprocess_data <- function(df_all) {
-
+preprocess_data <- function(df) {
+  
+  library(dplyr)
+  library(janitor)
+  library(lubridate)
+  
+  # --------------------------------------------------
   # Clean column names and create year
-  df_all <- df_all %>%
+  # --------------------------------------------------
+  
+  df <- df %>%
     clean_names() %>%
     mutate(
-      date = as.Date(date, format = "%m/%d/%Y"),
-      year = as.numeric(as.character(year(date)))
+      date = as.Date(as.character(date), format = "%m/%d/%Y"),
+      year = factor(lubridate::year(date))
     )
   
-  df <- df_all %>%
-    filter(!grepl("Pre", age_yr, ignore.case = TRUE))
-  
+  # --------------------------------------------------
   # Standardize Spartina column names if needed
+  # --------------------------------------------------
+  
   df <- df %>%
     rename(
       avg_spal_h_cm = any_of("avg_spal_h"),
       avg_spal_d_mm = any_of("avg_spal_d")
     )
   
-  # Remove structural zeros from average height/diameter
-  # (only if all required columns exist)
-  if (all(c("spal_stem_count",
-            "avg_spal_h_cm",
-            "avg_spal_d_mm") %in% names(df))) {
+  
+  # --------------------------------------------------
+  # Remove structural zeros from average
+  # height/diameter
+  # --------------------------------------------------
+  
+  if (all(c(
+    "spal_stem_count",
+    "avg_spal_h_cm",
+    "avg_spal_d_mm"
+  ) %in% names(df))) {
     
     df <- df %>%
       mutate(
@@ -39,7 +52,11 @@ preprocess_data <- function(df_all) {
       )
   }
   
-  # Create marsh if it doesn't already exist
+  
+  # --------------------------------------------------
+  # Create marsh from area
+  # --------------------------------------------------
+  
   if (!"marsh" %in% names(df)) {
     
     df <- df %>%
@@ -47,73 +64,116 @@ preprocess_data <- function(df_all) {
         marsh = case_when(
           grepl("^HM", area, ignore.case = TRUE) ~ "HM",
           grepl("^LM", area, ignore.case = TRUE) ~ "LM",
+          grepl("MF", area) ~ "MF",
+          grepl("VE", area) ~ "VE",
+          grepl("O\\.C\\.", area, ignore.case = TRUE) ~ "O.C.",
+          grepl("PS&EV", area, ignore.case = TRUE) ~ "PS&EV",
+          grepl("PS&P", area, ignore.case = TRUE) ~ "PS&P",
+          grepl("Upland", area, ignore.case = TRUE) ~ "Upland",
+          grepl("Scrub Shrub", area, ignore.case = TRUE) ~ "Scrub Shrub",
+          grepl("Freshwater GI", area, ignore.case = TRUE) ~ "Freshwater GI",
+         # add new marsh type here, for example: 
+          grepl("Grassland", area, ignore.case = TRUE) ~ "Grassland",     #<----
           TRUE ~ NA_character_
         )
       )
   }
   
-  # Create treatments if it doesn't already exist (see get_treatment function below)
+  # --------------------------------------------------
+  # Keep only High and Low Marsh observations
+  # --------------------------------------------------
+  
+  df <- df %>%
+    filter(marsh %in% 
+             c("HM", "LM", "MF", "VE", "O.C.", "PS&EV", "PS&P", "Grassland", "Upland", "Scrub Shrub", "Freshwater GI"))                       # if adding new marsh type, add it to the list here
+  
+  
+  # --------------------------------------------------
+  # Always derive treatment from area
+  # --------------------------------------------------
+  
   df <- df %>%
     mutate(
-      treatment = get_treatment(.)
+      treatment = case_when(
+        # add treatment here, for example: 
+        grepl("cluster", area, ignore.case = TRUE) ~ "Cluster",       #<----
+        
+        # If none of the above identifiers are found in area,
+        # check rest_ref
+        grepl("reference", rest_ref, ignore.case = TRUE) ~ "Reference",
+        grepl("restored", rest_ref, ignore.case = TRUE) ~ "Restored",
+        
+        TRUE ~ NA_character_
+      )
     )
   
-  # Keep only High and Low Marsh observations
-  df <- df %>%
-    filter(marsh %in% c("HM", "LM"))
   
-  # Set Reference as the baseline treatment
+  # --------------------------------------------------
+  # Set Reference as baseline treatment
+  # --------------------------------------------------
+  
   df <- df %>%
     mutate(
       treatment = factor(
         treatment,
-        levels = c("Reference", "Restored", "Cluster")
+        levels = c(
+          "Reference",
+          "Restored",
+          "Cluster"
+                                                               # if adding new treatment, add it to the list here
+        )
       )
     )
   
-  #create unique plot ID column 
-  df$plotID <- interaction(df$treatment, df$plot)
+  # -------------------------------------------------- 
+  # Create unique plot ID 
+  # -------------------------------------------------- 
   
-  # Move commonly used columns to the front
+  if ("plot" %in% names(df)) { 
+    df <- df %>% 
+      mutate( 
+        plotID = interaction( 
+          treatment, 
+          plot, 
+          drop = TRUE ) ) 
+  } else { 
+      warning( "Column 'plot' not found. plotID could not be created." 
+      ) 
+    }
+  
+  
+  # --------------------------------------------------
+  # Move commonly used columns to front
+  # --------------------------------------------------
+  
   df <- df %>%
-    relocate(marsh, treatment, year, plotID)
+    relocate(
+      marsh,
+      treatment,
+      year
+    )
+  
   
   return(df)
 }
 
 
 
-get_treatment <- function(df) {
+format_p <- function(p) {
   
-  if ("treatment" %in% names(df) &&
-      any(!is.na(df$treatment))) {
-    return(as.character(df$treatment))
+  if (length(p) == 0 || is.na(p)) {
+    return(NA_character_)
   }
   
-  if ("rest_ref" %in% names(df) &&
-      any(!is.na(df$rest_ref))) {
-    return(as.character(df$rest_ref))
+  if (p < 0.001) {
+    return("<0.001")
   }
   
-  for (col in c("area_name", "site_name", "area")) {
-    
-    if (col %in% names(df)) {
-      
-      x <- df[[col]]
-      
-      trt <- case_when(
-        grepl("Reference", x, ignore.case = TRUE) ~ "Reference",
-        grepl("Restored", x, ignore.case = TRUE) ~ "Restored",
-        grepl("Cluster", x, ignore.case = TRUE) ~ "Cluster",
-        TRUE ~ NA_character_
-      )
-      
-      if (any(!is.na(trt)))
-        return(trt)
-    }
-  }
-  
-  rep(NA_character_, nrow(df))
+  formatC(
+    p,
+    format = "f",
+    digits = 3
+  )
 }
 
 
@@ -642,7 +702,7 @@ run_time_glm <- function(data, response, marsh_type, groups){
 
 
 
-plot_average_counts <- function(data, response, show_means = TRUE){
+plot_average_counts <- function(data, response, show_means = TRUE){ #Bar graphs for year comparisons 
   
   # Create combined marsh-treatment grouping
   data <- data %>%
@@ -650,7 +710,18 @@ plot_average_counts <- function(data, response, show_means = TRUE){
       marsh_treatment = interaction(
         marsh,
         treatment,
-        sep = " - "
+        sep = " "
+      ),
+      marsh_treatment = factor(
+        marsh_treatment, 
+        levels = c(
+          "HM Cluster",
+          "HM Reference",
+          "HM Restored",
+          "LM Cluster",
+          "LM Reference",
+          "LM Restored"
+        )
       )
     )
   
@@ -681,6 +752,9 @@ plot_average_counts <- function(data, response, show_means = TRUE){
       position = position_dodge(width = 0.9),
       width = 0.8
     ) +
+   
+   scale_fill_brewer(palette = "Greys",
+                     direction = -1) +
     
     geom_errorbar(
       aes(
@@ -693,18 +767,28 @@ plot_average_counts <- function(data, response, show_means = TRUE){
     
     labs(
       title = paste("Mean", response, "by Marsh, Treatment, and Year"),
-      x = "Marsh Type - Treatment",
+      x = NULL,
       y = paste("Mean", response),
       fill = "Year"
     ) +
     
-    theme_bw() +
-    theme(
-      axis.text.x = element_text(
-        angle = 45,
-        hjust = 1
-      ) 
-    ) 
+    theme_classic() +
+      theme(
+       panel.grid.major.y = element_line(color = "grey80"),
+       panel.grid.minor = element_blank(),
+       legend.position = c(0.85,0.85),
+       axis.text.x = element_text(
+         size = 14,
+         angle = 45, 
+         hjust = 1 
+       ),
+       axis.text.y = element_text(
+         size = 14
+       ),
+       axis.title.y = element_text(
+         size =16
+       )
+     ) 
     
  #add labels if show means is checked
   if(show_means){
@@ -729,14 +813,25 @@ plot_average_counts <- function(data, response, show_means = TRUE){
 
 
 
-plot_response_comparison <- function(data, responses, show_means = TRUE){
+plot_response_comparison <- function(data, responses, show_means = TRUE){ #Count Comparisons 
   
   data <- data %>%
     dplyr::mutate(
       marsh_treatment = interaction(
         marsh,
         treatment,
-        sep = " - "
+        sep = " "
+      ),
+      marsh_treatment = factor(
+        marsh_treatment, 
+        levels = c(
+          "HM Cluster",
+          "HM Reference",
+          "HM Restored",
+          "LM Cluster",
+          "LM Reference",
+          "LM Restored"
+        )
       )
     )
   
@@ -779,6 +874,9 @@ plot_response_comparison <- function(data, responses, show_means = TRUE){
       width = 0.8
     ) +
     
+    scale_fill_brewer(palette = "Greys",
+                      direction = -1) +
+    
     geom_errorbar(
       aes(
         ymin = mean_value - se,
@@ -793,16 +891,26 @@ plot_response_comparison <- function(data, responses, show_means = TRUE){
         "Count Indicators by Marsh and Treatment -",
         unique(data$year)
       ),
-      x = "Marsh Type - Treatment",
+      x = NULL,
       y = "Mean Count",
       fill = "Indicator"
     ) +
     
-    theme_bw() +
+    theme_classic() +
     theme(
+      panel.grid.major.y = element_line(color = "grey80"),
+      panel.grid.minor = element_blank(),
+      legend.position = c(0.85,0.85),
       axis.text.x = element_text(
-        angle = 45,
-        hjust = 1
+        size = 14,
+        angle = 45, 
+        hjust = 1 
+      ),
+      axis.text.y = element_text(
+        size = 14
+      ),
+      axis.title.y = element_text(
+        size =16
       )
     )
   
@@ -836,7 +944,18 @@ plot_elevation <- function(data, season_year, line_labels, line_values){
       marsh_treatment = interaction(
         marsh,
         treatment,
-        sep = " - "
+        sep = " "
+      ),
+      marsh_treatment = factor(
+        marsh_treatment, 
+        levels = c(
+          "HM Cluster",
+          "HM Reference",
+          "HM Restored",
+          "LM Cluster",
+          "LM Reference",
+          "LM Restored"
+        )
       )
     )
   
@@ -847,7 +966,15 @@ plot_elevation <- function(data, season_year, line_labels, line_values){
       y = elevation_ft
     )
   ) +
-    geom_boxplot(alpha = 0.6) +
+    geom_boxplot(alpha = 0.6, 
+                 fill = "grey") +
+    
+    stat_boxplot(
+      geom = "errorbar",
+      width = 0.4,
+      linetype = "solid",
+      linewidth = 0.4
+    ) +
     
     geom_hline(
       yintercept = line_values,
@@ -866,21 +993,30 @@ plot_elevation <- function(data, season_year, line_labels, line_values){
       ),
       inherit.aes = FALSE,
       hjust = 1,
-      vjust = -0.5
+      vjust = -0.5,
+      size = 5
     ) +
     
     labs(
       title = season_year,
-      x = "Marsh Type - Treatment",
-      y = "Elevation NAVD88 (ft)"
+      x = "Monitoring Area",
+      y = "Elevation NAVD88 ft"
     ) +
     
-    theme_bw() +
+    theme_classic() +
     theme(
       legend.position = "none",
       axis.text.x = element_text(
-        angle = 45,
+        size = 14,
         hjust = 1 
+      ),
+      axis.title.x = element_text(
+        size =16),
+      axis.text.y = element_text(
+        size = 14
+      ),
+      axis.title.y = element_text(
+        size =16
+        )
       )
-    )
 }
