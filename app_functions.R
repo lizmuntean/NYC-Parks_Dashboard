@@ -139,7 +139,14 @@ preprocess_data <- function(df) {
   } else { 
       warning( "Column 'plot' not found. plotID could not be created." 
       ) 
-    }
+  }
+  
+  # -------------------------------------------------- 
+  # Specifically changing Alley LS datasheet to encode Phase 2 Age as the years post restoration
+  # -------------------------------------------------- 
+  
+  df <- df %>%
+      rename(age_yr = any_of("phase_2_age_yr"))
   
   
   # --------------------------------------------------
@@ -201,12 +208,13 @@ run_annual_analysis <- function(data, response, groups, marsh_type, season_year)
   # Statistical results
   anova_tbl <- broom::tidy(anova(model)) %>%
     mutate(
-      statistic = round(statistic, 2),
-      p.value = ifelse(
-        p.value < 0.001,
-        "<0.001",
-        sprintf("%.3f", p.value)
+      significant = !is.na(p.value) & p.value < 0.05,
+      p_display = case_when(
+        is.na(p.value) ~ "",
+        p.value < 0.001 ~ "<0.001",
+        TRUE ~ sprintf("%.3f", p.value)
       ),
+      statistic = round(statistic, 2),
       test = "F test"
     )
   
@@ -302,6 +310,7 @@ run_time_analysis <- function(data, response, marsh_type, groups){
   model <-lmer(form, data = df)
   
   # Statistical results
+  # Statistical results
   anova_tbl <- anova(model) |>
     as.data.frame() |>
     tibble::rownames_to_column("term") |>
@@ -310,15 +319,16 @@ run_time_analysis <- function(data, response, marsh_type, groups){
       p.value = `Pr(>F)`
     ) |>
     mutate(
-      statistic = round(statistic, 2),
-      p.value = ifelse(
-        p.value < 0.001,
-        "<0.001",
-        sprintf("%.3f", p.value)
+      significant = !is.na(p.value) & p.value < 0.05,
+      p_display = case_when(
+        is.na(p.value) ~ "",
+        p.value < 0.001 ~ "<0.001",
+        TRUE ~ sprintf("%.3f", p.value)
       ),
+      statistic = round(statistic, 2),
       test = "F test"
     )
-  print(anova_tbl)
+  
   
   shapiro_tbl <- shapiro.test(residuals(model))
   
@@ -498,16 +508,18 @@ run_annual_glm <- function(data, response, groups, marsh_type, season_year){
   model <- MASS::glm.nb(form, data = df) #can change to poisson if variance is equal to the mean, unlikely in this situation
   
   # Statistical results
-  anova_tbl <- broom::tidy(car::Anova(model, type = "III")) %>%
+  anova_tbl <- broom::tidy(car::Anova(model, type = "III", test.statistic = "LR")) %>%
     mutate(
-      statistic = round(statistic, 2),
-      p.value = ifelse(
-        p.value < 0.001,
-        "<0.001",
-        sprintf("%.3f", p.value)
+      significant = !is.na(p.value) & p.value < 0.05,
+      p_display = case_when(
+        is.na(p.value) ~ "",
+        p.value < 0.001 ~ "<0.001",
+        TRUE ~ sprintf("%.3f", p.value)
       ),
-      test = "Likelihood ratio"
+      statistic = round(statistic, 2),
+      test = "LR χ²"
     )
+  
   
   contrast_tbl <- emmeans(model, pairwise ~ treatment, type = "response")
   
@@ -629,16 +641,18 @@ run_time_glm <- function(data, response, marsh_type, groups){
     }
   }
   # Statistical results
-  anova_tbl <- broom::tidy(car::Anova(model, type = "III")) %>%
+  anova_tbl <- broom::tidy(car::Anova(model, type = "III", test.statistic = "LR")) %>%
     mutate(
-      statistic = round(statistic, 2),
-      p.value = ifelse(
-        p.value < 0.001,
-        "<0.001",
-        sprintf("%.3f", p.value)
+      significant = !is.na(p.value) & p.value < 0.05,
+      p_display = case_when(
+        is.na(p.value) ~ "",
+        p.value < 0.001 ~ "<0.001",
+        TRUE ~ sprintf("%.3f", p.value)
       ),
-      test = "Likelihood ratio"
+      statistic = round(statistic, 2),
+      test = "LR χ²"
     )
+  
   
   contrast_tbl <- emmeans(model, pairwise ~ treatment | year, type = "response")
   

@@ -1,5 +1,4 @@
-# make a similar app for SSIM?
-## do we want to get rid of interp tab and edit the ANOVA tab
+# Application UI and Server
 
 # Required libraries loading into the project:
 library(shiny)
@@ -47,6 +46,10 @@ response_variables <-c(
 
 # User Interface
 
+# ============================================================
+# User Interface
+# ============================================================
+
 ui <- fluidPage(
   
   titlePanel("Wetland Environmental Compliance Dashboard"),
@@ -55,7 +58,6 @@ ui <- fluidPage(
     
     sidebarPanel(
       
-      
       fileInput(
         "datafile",
         "Upload Wetland Data",
@@ -63,9 +65,7 @@ ui <- fluidPage(
       ),
       
       uiOutput("response_ui"),
-      
       uiOutput("treatment_ui"),
-      
       uiOutput("marsh_ui"),
       
       radioButtons(
@@ -80,15 +80,20 @@ ui <- fluidPage(
       
       uiOutput("year_ui"),
       
-      actionButton("run", "Run Analysis")
-      
+      actionButton(
+        "run",
+        "Run Analysis"
+      )
     ),
     
     mainPanel(
       
       style = "height: 900px; overflow-y: auto;",
       
-      # Summary cards at the top
+      # ========================================================
+      # Summary cards
+      # ========================================================
+      
       fluidRow(
         
         column(
@@ -116,259 +121,431 @@ ui <- fluidPage(
             h4("Sample Size"),
             textOutput("summary_n")
           )
-        ),
+        )
+      ),
       
-      # Tabs below the cards
+      # ========================================================
+      # Tabs
+      # ========================================================
+      
       tabsetPanel(
-        tabPanel("Data Distribution",
-                 plotOutput("histograms", height = "800px")),
-        tabPanel("Boxplot",
-                 plotOutput("boxplot")
+        
+        # ------------------------------------------------------
+        # Data Distribution
+        # ------------------------------------------------------
+        
+        tabPanel(
+          "Data Distribution",
+          plotOutput(
+            "histograms",
+            height = "800px"
+          )
         ),
         
-        tabPanel("Diagnostics and Assumptions",
-                 plotOutput("qqplot"),
-                 plotOutput("residplot"),
-                 verbatimTextOutput("shapiro"),
-                 verbatimTextOutput("levene")
-                 
-      ),
-      
-       tabPanel("ANOVA",
-               tableOutput("anova"),
-               
-               h4("How to interpret these results"),
-               
-               tags$ul(
-                 tags$li(strong("sumsq:"), "Total variation attributed to that source. Larger values indicate more variation explained."),
-                 tags$li(strong("meansq:"), "SumSq divided by Df. This is the average variation per degree of freedom."),
-                 tags$li(strong("statistic:"), "The likelihood ratio statistic (often denoted χ² or LR χ²). It measures how much better the model fits when that term is included. 
-                         Larger values indicate a greater improvement in fit. Or, the F statistic, which compares the variation explained by the factor to the unexplained (residual) variation. 
-                         Larger values provide stronger evidence against the null hypothesis."),
-                 tags$li(strong("p.value:"), "The probability of obtaining a test statistic at least this large if there were truly no treatment effect."),
-                 tags$li(strong("test:"), "Likelihood ratio is used to fit a negative binomial GLM, as is used for count data. This methods 
-                         compares the full model with a reduced model to determine if the term of interest significantly increases the model's 
-                         likelihood and is ideed explaining the variation better than random chance. The F test determines if the variance explained by the fixed effect
-                         is large relative to the residual values and follows the assumptions of a linear or linear mixed effects model. It is the ratio of between-group variation over within-group variation.")
-      )),
-      
-        tabPanel("Estimated Marginal Means",
-                 
-              h3("Model-Adjusted Means"),
-              
-              uiOutput("emmeans_summary"),
-              
-              uiOutput("emmeans_table"),
-              
-              uiOutput("emmeans_contrasts"),
-              
-              h4("How to interpret these results"),
-              
-              tags$ul(
-                tags$li(strong("$emmeans, emmean:"), "The estimated marginal mean (also called the least-squares mean). This is the model-predicted mean for that group after accounting for the other variables in the model."),
-                tags$li(strong("$emmeans, lower.Cl, upper.CL:"), "Lower and upper bounds of the 95% confidence interval."),
-                tags$li(strong("$contrasts, estimate:"), "The estimated difference between the two group means. A negative value means the first group has a lower mean than the second; a positive value means the first group has a higher mean.."),
-                tags$li(strong("$contrasts, t.ratio:"), "The test statistic. It is the estimated difference divided by its standard error: estimate/SE. Larger absolute values indicate stronger evidence that the groups differ."),
-                tags$li(strong("$contrasts, p.value:"), "The probability of observing a difference at least this extreme if the true difference between the groups were zero. This is often adjusted for multiple comparisons (e.g., Tukey adjustment).")
-                )),
-      
-        tabPanel("Interpretation",
-                 uiOutput("interpretation"),
-                 uiOutput("emmeans_interpretation")
+        # ------------------------------------------------------
+        # Boxplot
+        # ------------------------------------------------------
+        
+        tabPanel(
+          "Boxplot",
+          plotOutput("boxplot")
         ),
-      
-        tabPanel("Non-parametric tests",
-                 actionButton("run_nonparam", "Run Non-Parametric Analysis"),
-                 
-                 br(),
-                 
-                 h3("Overall Test"),
-                 
-                 uiOutput("non_param_interp"),
-                 
-                 h3("Pairwise Comparisons"),
-                 
-                 uiOutput("non_param_posthoc"),
-                 
-                 h4("About Non-Parametric Tests"),
-                 
-                 tags$p(
-                   "Non-parametric tests are rank-based alternatives to ANOVA that are used when assumptions of normality or equal variance are not met. 
-                   The Wilcoxon rank-sum test compares two groups, while the Kruskal-Wallis test compares three or more independent groups. 
-                   Significant results indicate that at least one group differs, 
-                   but post-hoc comparisons are required to identify which groups are different."
-                 ),
-                 
-                 tags$ul(
-                   
-                   tags$li(
-                     strong("Wilcoxon rank-sum test: "),
-                     "Used when comparing two independent groups. This test evaluates whether observations from one group tend to have higher or lower values than the other group. "
-                   ),
-                   
-                   tags$li(
-                     strong("Kruskal-Wallis test: "),
-                     "Used when comparing three or more independent groups. This is the non-parametric equivalent of a one-way ANOVA and tests whether at least one group differs from the others."
-                   ),
-      
-                   )
-                 ),
-
-      tabPanel("Elevation",
-               plotOutput("elevation_plot", height = "700px"),
-               
-               h4("Enter planting ranges and tide datum:"),
-               
-               textInput(
-                 "line1_label",
-                 "Reference line 1 label",
-                 value = "MHHW"
-               ),
-               
-               numericInput(
-                 "line1_value",
-                 "Reference line 1 elevation (ft)",
-                 value = 3.03
-               ),
-               
-               textInput(
-                 "line2_label",
-                 "Reference line 2 label",
-                 value = "MHW"
-               ),
-               
-               numericInput(
-                 "line2_value",
-                 "Reference line 2 elevation (ft)",
-                 value = 2.43
-               ),
-               
-               textInput(
-                 "line3_label",
-                 "Reference line 3 label",
-                 value = "MTL"
-               ),
-               
-               numericInput(
-                 "line3_value",
-                 "Reference line 3 elevation (ft)",
-                 value = -0.2
-               ),
-               
-               textInput(
-                 "line4_label",
-                 "Reference line 4 label",
-                 value = "MLW"
-               ),
-               
-               numericInput(
-                 "line4_value",
-                 "Reference line 4 elevation (ft)",
-                 value = -2.83
-               ),
-      
-                br(),
-      
-                h4("Figure specs:"),
-      
-                numericInput("elev_fig_width", "Figure Width (in)", 8),
-      
-                numericInput("elev_fig_height", "Figure Height (in)", 6),
-      
-                numericInput("elev_fig_dpi", "Resolution (dpi)", 300),
-      
-                downloadButton("download_elevation",
-                                      "Download Figure"),
-      
-      ),
-      
-      tabPanel(
-        "Bar Graphs for year comparisons",
         
-                    fluidRow(
-                      column(
-                        4,
-                        uiOutput("plot_years_ui")
-                      ),
-                      column(
-                        4,
-                        checkboxInput("show_means", "Show mean values", TRUE)
-                      ),
-                      column(
-                        4,
-                        br(),
-                        actionButton("update_plots", "Update Plots")
-                      )
-                    ),
-                    
-                    hr(),
-                    
-                    plotOutput("average_plot", height = "800px"),
-                  
-                  br(),
-                  
-                  h4("Figure specs:"),
-                  
-                  numericInput("bar_fig_width", "Figure Width (in)", 8),
-                  
-                  numericInput("bar_fig_height", "Figure Height (in)", 6),
-                  
-                  numericInput("bar_fig_dpi", "Resolution (dpi)", 300),
-                  
-                  downloadButton(
-                    "download_average",
-                    "Download Figure"
-                  ),
-      ),
-                  
-      tabPanel(
-        "Count Comparisons",
+        # ------------------------------------------------------
+        # Diagnostics
+        # ------------------------------------------------------
         
-                fluidRow(
-                  column(
-                    4,
-                    uiOutput("comparison_year_ui")
-                  ),
-                  
-                  column(
-                    4,
-                    uiOutput("comparison_response_ui")
-                  ),
-                  
-                  column(
-                    4,
-                    checkboxInput("show_comparison_means", "Show mean values", TRUE)
-                  ),
-                  
-                  
-                ),
-                
-                hr(),
-                
-                plotOutput(
-                  "response_comparison_plot",
-                  height = "700px"
-                ),
-                
-                br(),
-                
-                h4("Figure specs:"),
-                
-                numericInput("count_fig_width", "Figure Width (in)", 8),
-                
-                numericInput("count_fig_height", "Figure Height (in)", 6),
-                
-                numericInput("count_fig_dpi", "Resolution (dpi)", 300),
-                
-                downloadButton(
-                  "download_comparison",
-                  "Download Figure"
-                ),
-      )
+        tabPanel(
+          "Diagnostics and Assumptions",
+          
+          plotOutput("qqplot"),
+          plotOutput("residplot"),
+          
+          verbatimTextOutput("shapiro"),
+          verbatimTextOutput("levene")
+        ),
+        
+        # ------------------------------------------------------
+        # ANOVA
+        # ------------------------------------------------------
+        
+        tabPanel(
+          "ANOVA",
+          
+          uiOutput("anova_table"),
+          
+          h4("How to interpret these results"),
+          
+          tags$ul(
+            
+            tags$li(
+              strong("Statistic: "),
+              "The test statistic used to evaluate the model term. ",
+              "For linear models this is commonly an F statistic. ",
+              "For generalized linear models, a likelihood-ratio test may ",
+              "be reported as a chi-square (χ²) statistic."
+            ),
+            
+            tags$li(
+              strong("P value: "),
+              "The probability of obtaining a test statistic at least this ",
+              "extreme if there were truly no effect."
+            ),
+            
+            tags$li(
+              strong("Test: "),
+              "The statistical test used for the model term. ",
+              "Likelihood-ratio tests compare the full model with a reduced ",
+              "model, while F tests compare variation explained by the model ",
+              "term with residual variation."
+            )
+          )
+        ),
+        
+        # ------------------------------------------------------
+        # Estimated Marginal Means
+        # ------------------------------------------------------
+        
+        tabPanel(
+          "Estimated Marginal Means",
+          
+          h3("Model-Adjusted Means"),
+          
+          uiOutput("emmeans_summary"),
+          uiOutput("emmeans_table"),
+          uiOutput("emmeans_contrasts"),
+          
+          h4("How to interpret these results"),
+          
+          tags$ul(
+            
+            tags$li(
+              strong("Model-adjusted means, Estimate: "),
+              "The estimated marginal mean, also called the ",
+              "least-squares mean. This is the model-predicted mean ",
+              "for that group after accounting for the other variables ",
+              "included in the model."
+            ),
+            
+            tags$li(
+              strong("95% CI: "),
+              "The lower and upper bounds of the 95% confidence interval."
+            ),
+            
+            tags$li(
+              strong("Pairwise comparisons, Estimate: "),
+              "The estimated difference between two group means. ",
+              "A negative value means the first group has a lower mean ",
+              "than the second; a positive value means the first group ",
+              "has a higher mean."
+            ),
+            
+            tags$li(
+              strong("Adjusted p value: "),
+              "The probability of observing a difference at least this ",
+              "extreme if the true difference between groups were zero. ",
+              "This is adjusted for multiple comparisons."
+            )
+          )
+        ),
+        
+        # ------------------------------------------------------
+        # Interpretation
+        # ------------------------------------------------------
+        
+        tabPanel(
+          "Interpretation",
+          
+          uiOutput("interpretation"),
+          uiOutput("emmeans_interpretation")
+        ),
+        
+        # ------------------------------------------------------
+        # Non-parametric tests
+        # ------------------------------------------------------
+        
+        tabPanel(
+          "Non-parametric tests",
+          
+          actionButton(
+            "run_nonparam",
+            "Run Non-Parametric Analysis"
+          ),
+          
+          br(),
+          
+          h3("Overall Test"),
+          
+          uiOutput("non_param_interp"),
+          
+          h3("Pairwise Comparisons"),
+          
+          uiOutput("non_param_posthoc"),
+          
+          h4("About Non-Parametric Tests"),
+          
+          tags$p(
+            paste0(
+              "Non-parametric tests are rank-based alternatives to ANOVA ",
+              "that are used when assumptions of normality or equal variance ",
+              "are not met. The Wilcoxon rank-sum test compares two groups, ",
+              "while the Kruskal-Wallis test compares three or more independent ",
+              "groups. Significant results indicate that at least one group ",
+              "differs, but post-hoc comparisons are required to identify ",
+              "which groups are different."
+            )
+          ),
+          
+          tags$ul(
+            
+            tags$li(
+              strong("Wilcoxon rank-sum test: "),
+              "Used when comparing two independent groups. This test ",
+              "evaluates whether observations from one group tend to have ",
+              "higher or lower values than the other group."
+            ),
+            
+            tags$li(
+              strong("Kruskal-Wallis test: "),
+              "Used when comparing three or more independent groups. ",
+              "This is the non-parametric equivalent of a one-way ANOVA ",
+              "and tests whether at least one group differs from the others."
+            )
+          )
+        ),
+        
+        # ------------------------------------------------------
+        # Elevation
+        # ------------------------------------------------------
+        
+        tabPanel(
+          "Elevation",
+          
+          fluidRow(
+            column(
+              4,
+              uiOutput("elevation_year_ui")
+            )
+          ),
+          
+          plotOutput(
+            "elevation_plot",
+            height = "700px"
+          ),
+          
+          h4("Enter planting ranges and tide datum:"),
+          
+          textInput(
+            "line1_label",
+            "Reference line 1 label",
+            value = "MHHW"
+          ),
+          
+          numericInput(
+            "line1_value",
+            "Reference line 1 elevation (ft)",
+            value = 3.03
+          ),
+          
+          textInput(
+            "line2_label",
+            "Reference line 2 label",
+            value = "MHW"
+          ),
+          
+          numericInput(
+            "line2_value",
+            "Reference line 2 elevation (ft)",
+            value = 2.43
+          ),
+          
+          textInput(
+            "line3_label",
+            "Reference line 3 label",
+            value = "MTL"
+          ),
+          
+          numericInput(
+            "line3_value",
+            "Reference line 3 elevation (ft)",
+            value = -0.2
+          ),
+          
+          textInput(
+            "line4_label",
+            "Reference line 4 label",
+            value = "MLW"
+          ),
+          
+          numericInput(
+            "line4_value",
+            "Reference line 4 elevation (ft)",
+            value = -2.83
+          ),
+          
+          br(),
+          
+          h4("Figure specs:"),
+          
+          numericInput(
+            "elev_fig_width",
+            "Figure Width (in)",
+            8
+          ),
+          
+          numericInput(
+            "elev_fig_height",
+            "Figure Height (in)",
+            6
+          ),
+          
+          numericInput(
+            "elev_fig_dpi",
+            "Resolution (dpi)",
+            300
+          ),
+          
+          downloadButton(
+            "download_elevation",
+            "Download Figure"
+          )
+        ),
+        
+        # ------------------------------------------------------
+        # Bar Graphs
+        # ------------------------------------------------------
+        
+        tabPanel(
+          "Bar Graphs for year comparisons",
+          
+          fluidRow(
+            
+            column(
+              4,
+              uiOutput("plot_years_ui")
+            ),
+            
+            column(
+              4,
+              checkboxInput(
+                "show_means",
+                "Show mean values",
+                TRUE
+              )
+            ),
+            
+            column(
+              4,
+              br(),
+              actionButton(
+                "update_plots",
+                "Update Plots"
+              )
+            )
+          ),
+          
+          hr(),
+          
+          plotOutput(
+            "average_plot",
+            height = "800px"
+          ),
+          
+          br(),
+          
+          h4("Figure specs:"),
+          
+          numericInput(
+            "bar_fig_width",
+            "Figure Width (in)",
+            8
+          ),
+          
+          numericInput(
+            "bar_fig_height",
+            "Figure Height (in)",
+            6
+          ),
+          
+          numericInput(
+            "bar_fig_dpi",
+            "Resolution (dpi)",
+            300
+          ),
+          
+          downloadButton(
+            "download_average",
+            "Download Figure"
+          )
+        ),
+        
+        # ------------------------------------------------------
+        # Count Comparisons
+        # ------------------------------------------------------
+        
+        tabPanel(
+          "Count Comparisons",
+          
+          fluidRow(
+            
+            column(
+              4,
+              uiOutput("comparison_year_ui")
+            ),
+            
+            column(
+              4,
+              uiOutput("comparison_response_ui")
+            ),
+            
+            column(
+              4,
+              checkboxInput(
+                "show_comparison_means",
+                "Show mean values",
+                TRUE
+              )
+            )
+          ),
+          
+          hr(),
+          
+          plotOutput(
+            "response_comparison_plot",
+            height = "700px"
+          ),
+          
+          br(),
+          
+          h4("Figure specs:"),
+          
+          numericInput(
+            "count_fig_width",
+            "Figure Width (in)",
+            8
+          ),
+          
+          numericInput(
+            "count_fig_height",
+            "Figure Height (in)",
+            6
+          ),
+          
+          numericInput(
+            "count_fig_dpi",
+            "Resolution (dpi)",
+            300
+          ),
+          
+          downloadButton(
+            "download_comparison",
+            "Download Figure"
+          )
+        )
       )
     )
   )
-))
+)
 
 
 
@@ -501,21 +678,36 @@ server <- function(input, output, session) {
     
   })
   
+  output$elevation_year_ui <- renderUI({
+    
+    req(dataset())
+    
+    years <- sort(unique(dataset()$year))
+    
+    selectInput(
+      "elevation_year",
+      "Year",
+      choices = sort(unique(dataset()$year)),
+      selected = tail(years, 1)
+    )
+    
+  })
+  
   elevation_plot_obj <- reactive({
     
     req(dataset())
-    req(input$year)
+    req(input$elevation_year)
     
     df <- dataset() %>%
       filter(
-        year == input$year,
+        year == input$elevation_year,
         marsh %in% input$marsh,
         treatment %in% input$groups
       )
     
     plot_elevation(
       data = df,
-      season_year = input$year,
+      season_year = input$elevation_year,
       line_labels = c(
         input$line1_label,
         input$line2_label,
@@ -541,7 +733,7 @@ server <- function(input, output, session) {
     filename = function() {
       paste0(
         "Elevation_",
-        input$year,
+        input$elevation_year,
         ".pdf"
       )
     },
@@ -558,6 +750,7 @@ server <- function(input, output, session) {
       
     }
   )
+  
   
   output$summary_n <- renderText({
     
@@ -648,23 +841,286 @@ server <- function(input, output, session) {
     
   })
   
-  output$anova <- renderTable({
+  output$anova_table <- renderUI({
     
     req(results())
     
-    if(!is.null(results()$error)){
+    if (!is.null(results()$error)) {
       
       return(
-        data.frame(
-          Message = results()$error
+        HTML(
+          paste0(
+            "<div style='padding:15px;
+                    background:#f8d7da;
+                    border:1px solid #f5c2c7;
+                    border-radius:8px;
+                    margin-bottom:20px;'>",
+            
+            "<strong>ANOVA unavailable</strong><br>",
+            results()$error,
+            
+            "</div>"
+          )
         )
       )
-      
     }
     
-    results()$anova
     
+    if (is.null(results()$anova)) {
+      
+      return(
+        HTML(
+          "<div style='padding:15px;
+                  background:#f5f5f5;
+                  border:1px solid #ddd;
+                  border-radius:8px;
+                  margin-bottom:20px;'>
+        ANOVA results are not available for this analysis.
+        </div>"
+        )
+      )
+    }
+    
+    
+    anova <- results()$anova
+    
+    
+    # ============================================================
+    # Count significant terms
+    # ============================================================
+    
+    test_rows <- !grepl(
+      "Residual",
+      anova$term,
+      ignore.case = TRUE
+    )
+    
+    n_sig <- sum(
+      anova$significant & test_rows,
+      na.rm = TRUE
+    )
+    
+    n_total <- sum(
+      test_rows & !is.na(anova$p.value)
+    )
+    
+    
+    # ============================================================
+    # Create rows
+    # ============================================================
+    
+    rows <- lapply(
+      seq_len(nrow(anova)),
+      function(i) {
+        
+        significant <- anova$significant[i]
+        
+        row_style <- if (significant) {
+          "background-color:#f0f8f2;"
+        } else {
+          ""
+        }
+        
+        
+        # Term
+        term_cell <- if (significant) {
+          
+          paste0(
+            "<td style='font-weight:bold;'>",
+            anova$term[i],
+            "</td>"
+          )
+          
+        } else {
+          
+          paste0(
+            "<td>",
+            anova$term[i],
+            "</td>"
+          )
+        }
+        
+        
+        # df
+        df_cell <- paste0(
+          "<td>",
+          ifelse(
+            is.na(anova$df[i]),
+            "",
+            round(anova$df[i], 1)
+          ),
+          "</td>"
+        )
+        
+        
+        # Statistic
+        statistic_cell <- paste0(
+          "<td>",
+          ifelse(
+            is.na(anova$statistic[i]),
+            "",
+            paste0(
+              anova$test[i],
+              " = ",
+              round(anova$statistic[i], 2)
+            )
+          ),
+          "</td>"
+        )
+        
+        
+        # p-value
+        p_cell <- if (significant) {
+          
+          paste0(
+            "<td style='
+            font-weight:bold;
+            color:#2e7d32;
+          '>",
+            anova$p_display[i],
+            "</td>"
+          )
+          
+        } else {
+          
+          paste0(
+            "<td style='color:#666;'>",
+            anova$p_display[i],
+            "</td>"
+          )
+        }
+        
+        
+        paste0(
+          "<tr style='",
+          row_style,
+          "'>",
+          
+          term_cell,
+          df_cell,
+          statistic_cell,
+          p_cell,
+          
+          "</tr>"
+        )
+      }
+    )
+    
+    
+    # ============================================================
+    # Summary
+    # ============================================================
+    
+    if (n_sig > 0) {
+      
+      summary_text <- paste0(
+        "<p style='margin-bottom:8px;'>",
+        
+        "<strong style='
+        color:#2e7d32;
+        font-size:16px;
+      '>",
+        
+        n_sig,
+        
+        ifelse(
+          n_sig == 1,
+          " significant effect",
+          " significant effects"
+        ),
+        
+        "</strong>",
+        
+        " of ",
+        n_total,
+        " model terms.",
+        
+        "</p>"
+      )
+      
+    } else {
+      
+      summary_text <- paste0(
+        "<p style='
+        margin-bottom:8px;
+        color:#666;
+      '>",
+        
+        "No significant model terms.",
+        
+        "</p>"
+      )
+    }
+    
+    
+    # ============================================================
+    # Final UI
+    # ============================================================
+    
+    HTML(
+      paste0(
+        
+        "<div style='
+        padding:18px;
+        background:#f8f9fa;
+        border:1px solid #dee2e6;
+        border-radius:10px;
+        margin-bottom:20px;
+      '>",
+        
+        "<h4 style='
+        margin-top:0;
+        margin-bottom:10px;
+      '>",
+        
+        "ANOVA Results",
+        
+        "</h4>",
+        
+        summary_text,
+        
+        "<p style='
+        color:#666;
+        font-size:13px;
+        margin-bottom:15px;
+      '>",
+        
+        "Significant terms (p &lt; 0.05) are highlighted in green.",
+        
+        "</p>",
+        
+        "<div style='overflow-x:auto;'>",
+        
+        "<table class='table table-sm table-striped'
+             style='margin-bottom:0;'>",
+        
+        "<thead>",
+        "<tr>",
+        "<th>Term</th>",
+        "<th>df</th>",
+        "<th>Statistic</th>",
+        "<th>p</th>",
+        "</tr>",
+        "</thead>",
+        
+        "<tbody>",
+        
+        paste(
+          rows,
+          collapse = ""
+        ),
+        
+        "</tbody>",
+        
+        "</table>",
+        
+        "</div>",
+        
+        "</div>"
+      )
+    )
   })
+  
   
   output$emmeans <- renderPrint({
     
@@ -1082,148 +1538,480 @@ server <- function(input, output, session) {
     )
   })
 
+  # ============================================================
+  # ANOVA Interpretation
+  # ============================================================
   
   output$interpretation <- renderUI({
     
     req(results())
     
+    # ------------------------------------------------------------
     # Handle failed analysis
-    if(!is.null(results()$error)){
+    # ------------------------------------------------------------
+    
+    if (!is.null(results()$error)) {
       
       return(
         HTML(
           paste0(
-            "<h3>Analysis not available</h3>",
-            "<p>",
+            "<div style='
+            padding:18px;
+            background:#f8d7da;
+            border:1px solid #f5c2c7;
+            border-radius:10px;
+            margin-bottom:20px;
+          '>",
+            
+            "<h4 style='margin-top:0;'>",
+            "Analysis not available",
+            "</h4>",
+            
+            "<p style='margin-bottom:0;'>",
             results()$error,
-            "</p>"
+            "</p>",
+            
+            "</div>"
           )
         )
       )
-      
     }
     
-    anova_results <- results()$anova
     
-    req(nrow(anova_results) > 0)
+    # ------------------------------------------------------------
+    # Check ANOVA results
+    # ------------------------------------------------------------
     
-    # Determine year text
-    if (input$analysis_type == "annual") {
+    if (is.null(results()$anova)) {
       
-      year_text <- input$year
+      return(
+        HTML(
+          paste0(
+            "<div style='
+            padding:18px;
+            background:#f5f5f5;
+            border:1px solid #ddd;
+            border-radius:10px;
+            margin-bottom:20px;
+          '>",
+            
+            "ANOVA interpretation is not available for this analysis.",
+            
+            "</div>"
+          )
+        )
+      )
+    }
+    
+    
+    anova <- results()$anova
+    
+    
+    # ------------------------------------------------------------
+    # Remove residual/error rows
+    # ------------------------------------------------------------
+    
+    test_rows <- !grepl(
+      "Residual|Error",
+      anova$term,
+      ignore.case = TRUE
+    )
+    
+    anova_terms <- anova[
+      test_rows,
+      ,
+      drop = FALSE
+    ]
+    
+    
+    # ------------------------------------------------------------
+    # Make sure there are terms to interpret
+    # ------------------------------------------------------------
+    
+    if (nrow(anova_terms) == 0) {
+      
+      return(
+        HTML(
+          paste0(
+            "<div style='
+            padding:18px;
+            background:#f5f5f5;
+            border:1px solid #ddd;
+            border-radius:10px;
+          '>",
+            
+            "No model terms are available for interpretation.",
+            
+            "</div>"
+          )
+        )
+      )
+    }
+    
+    
+    # ------------------------------------------------------------
+    # Count significant effects
+    # ------------------------------------------------------------
+    
+    n_sig <- sum(
+      anova_terms$significant,
+      na.rm = TRUE
+    )
+    
+    n_total <- sum(
+      !is.na(anova_terms$p.value)
+    )
+    
+    
+    # ------------------------------------------------------------
+    # Create interpretation rows
+    # ------------------------------------------------------------
+    
+    rows <- lapply(
+      seq_len(nrow(anova_terms)),
+      function(i) {
+        
+        term <- anova_terms$term[i]
+        significant <- isTRUE(anova_terms$significant[i])
+        p_display <- anova_terms$p_display[i]
+        statistic <- anova_terms$statistic[i]
+        
+        
+        # --------------------------------------------------------
+        # Determine test label
+        # --------------------------------------------------------
+        
+        test_label <- if (
+          "test" %in% names(anova_terms) &&
+          !is.na(anova_terms$test[i])
+        ) {
+          as.character(anova_terms$test[i])
+        } else {
+          "Statistic"
+        }
+        
+        
+        # --------------------------------------------------------
+        # Statistic text
+        # --------------------------------------------------------
+        
+        statistic_text <- if (
+          is.na(statistic)
+        ) {
+          ""
+        } else {
+          paste0(
+            test_label,
+            " = ",
+            round(statistic, 2)
+          )
+        }
+        
+        
+        # --------------------------------------------------------
+        # Interpretation text
+        # --------------------------------------------------------
+        
+        if (grepl(":", term)) {
+          
+          vars <- strsplit(
+            term,
+            ":"
+          )[[1]]
+          
+          if (significant) {
+            
+            interpretation <- paste0(
+              "<strong>Significant interaction detected.</strong> ",
+              "The effect of <strong>",
+              vars[1],
+              "</strong> depended on <strong>",
+              vars[2],
+              "</strong> for ",
+              "<strong>",
+              input$response,
+              "</strong>."
+            )
+            
+          } else {
+            
+            interpretation <- paste0(
+              "<strong>No significant interaction detected.</strong> ",
+              "There was not sufficient evidence that the effect of ",
+              "<strong>",
+              vars[1],
+              "</strong> depended on <strong>",
+              vars[2],
+              "</strong> for ",
+              "<strong>",
+              input$response,
+              "</strong>."
+            )
+          }
+          
+        } else {
+          
+          if (significant) {
+            
+            interpretation <- paste0(
+              "<strong>Significant effect detected.</strong> ",
+              "The model provides evidence that <strong>",
+              term,
+              "</strong> is associated with variation in ",
+              "<strong>",
+              input$response,
+              "</strong>."
+            )
+            
+          } else {
+            
+            interpretation <- paste0(
+              "<strong>No significant effect detected.</strong> ",
+              "The model did not provide sufficient evidence that ",
+              "<strong>",
+              term,
+              "</strong> is associated with variation in ",
+              "<strong>",
+              input$response,
+              "</strong>."
+            )
+          }
+        }
+        
+        
+        # --------------------------------------------------------
+        # Row styling
+        # --------------------------------------------------------
+        
+        row_style <- if (significant) {
+          "background-color:#f0f8f2;"
+        } else {
+          ""
+        }
+        
+        
+        # --------------------------------------------------------
+        # Term cell
+        # --------------------------------------------------------
+        
+        term_cell <- paste0(
+          "<td style='",
+          if (significant) {
+            "font-weight:bold;"
+          } else {
+            ""
+          },
+          "'>",
+          term,
+          "</td>"
+        )
+        
+        
+        # --------------------------------------------------------
+        # Statistic cell
+        # --------------------------------------------------------
+        
+        statistic_cell <- paste0(
+          "<td>",
+          statistic_text,
+          "</td>"
+        )
+        
+        
+        # --------------------------------------------------------
+        # p-value cell
+        # --------------------------------------------------------
+        
+        p_cell <- if (significant) {
+          
+          paste0(
+            "<td style='
+            font-weight:bold;
+            color:#2e7d32;
+          '>",
+            p_display,
+            "</td>"
+          )
+          
+        } else {
+          
+          paste0(
+            "<td style='color:#666;'>",
+            p_display,
+            "</td>"
+          )
+        }
+        
+        
+        # --------------------------------------------------------
+        # Interpretation cell
+        # --------------------------------------------------------
+        
+        interpretation_cell <- paste0(
+          "<td>",
+          interpretation,
+          "</td>"
+        )
+        
+        
+        # --------------------------------------------------------
+        # Complete row
+        # --------------------------------------------------------
+        
+        paste0(
+          "<tr style='",
+          row_style,
+          "'>",
+          
+          term_cell,
+          statistic_cell,
+          p_cell,
+          interpretation_cell,
+          
+          "</tr>"
+        )
+      }
+    )
+    
+    
+    # ------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------
+    
+    if (n_sig > 0) {
+      
+      summary_text <- paste0(
+        
+        "<div style='
+        padding:12px 15px;
+        background:#f0f8f2;
+        border:1px solid #c8e6c9;
+        border-radius:8px;
+        margin-bottom:15px;
+      '>",
+        
+        "<strong style='
+        color:#2e7d32;
+        font-size:16px;
+      '>",
+        
+        n_sig,
+        
+        ifelse(
+          n_sig == 1,
+          " significant effect",
+          " significant effects"
+        ),
+        
+        "</strong>",
+        
+        " detected among ",
+        
+        n_total,
+        
+        " model terms.",
+        
+        "</div>"
+      )
       
     } else {
       
-      year_text <- dataset() %>%
-        filter(marsh %in% input$marsh) %>%
-        pull(year) %>%
-        unique() %>%
-        sort() %>%
-        paste(collapse = ", ")
-      
+      summary_text <- paste0(
+        
+        "<div style='
+        padding:12px 15px;
+        background:#f5f5f5;
+        border:1px solid #ddd;
+        border-radius:8px;
+        margin-bottom:15px;
+      '>",
+        
+        "<strong style='color:#666;'>",
+        "No significant effects detected",
+        "</strong>",
+        
+        " among the model terms.",
+        
+        "</div>"
+      )
     }
     
-    interpretations <- lapply(seq_len(nrow(anova_results)), function(i){
-      
-      effect <- anova_results$term[i]
-      p_value <- anova_results$p.value[i]
-      
-      if (is.na(p_value))
-        return(NULL)
-      
-      # Convert p-value to numeric
-      if (grepl("<", p_value)) {
-        p_num <- 0.001
-      } else {
-        p_num <- as.numeric(p_value)
-      }
-      
-      significant <- p_num < 0.05
-      
-      # Create interpretation
-      if (grepl(":", effect)) {
+    
+    # ------------------------------------------------------------
+    # Final UI
+    # ------------------------------------------------------------
+    
+    HTML(
+      paste0(
         
-        vars <- strsplit(effect, ":")[[1]]
+        "<div style='
+        padding:18px;
+        background:#f8f9fa;
+        border:1px solid #dee2e6;
+        border-radius:10px;
+        margin-bottom:20px;
+      '>",
         
-        if (significant) {
-          
-          interpretation <- paste0(
-            "There was a significant interaction between <b>",
-            vars[1], "</b> and <b>", vars[2],
-            "</b> affecting <b>", input$response,
-            "</b> (<i>p = ", p_value, "</i>)."
-          )
-          
-        } else {
-          
-          interpretation <- paste0(
-            "There was no significant interaction between <b>",
-            vars[1], "</b> and <b>", vars[2],
-            "</b> affecting <b>", input$response,
-            "</b> (<i>p = ", p_value, "</i>)."
-          )
-          
-        }
+        "<h4 style='
+        margin-top:0;
+        margin-bottom:10px;
+      '>",
         
-      } else {
+        "ANOVA Interpretation",
         
-        if (significant) {
-          
-          interpretation <- paste0(
-            "There was a significant effect of <b>",
-            effect,
-            "</b> on <b>",
-            input$response,
-            "</b> (<i>p = ", p_value, "</i>)."
-          )
-          
-        } else {
-          
-          interpretation <- paste0(
-            "There was no significant effect of <b>",
-            effect,
-            "</b> on <b>",
-            input$response,
-            "</b> (<i>p = ", p_value, "</i>)."
-          )
-          
-        }
+        "</h4>",
         
-      }
-      
-      HTML(
-        paste0(
-          "<p><b>",
-          effect,
-          ":</b> ",
-          interpretation,
-          "</p>"
-        )
+        "<p style='
+        color:#666;
+        font-size:13px;
+        margin-bottom:15px;
+      '>",
+        
+        "This table summarizes the evidence for each model term ",
+        "and describes whether the term was statistically significant ",
+        "for the selected response variable.",
+        
+        "</p>",
+        
+        summary_text,
+        
+        "<div style='overflow-x:auto;'>",
+        
+        "<table class='table table-sm table-striped'
+             style='margin-bottom:0;'>",
+        
+        "<thead>",
+        
+        "<tr>",
+        
+        "<th>Term</th>",
+        "<th>Statistic</th>",
+        "<th>p</th>",
+        "<th>Interpretation</th>",
+        
+        "</tr>",
+        
+        "</thead>",
+        
+        "<tbody>",
+        
+        paste(
+          rows,
+          collapse = ""
+        ),
+        
+        "</tbody>",
+        
+        "</table>",
+        
+        "</div>",
+        
+        "</div>"
       )
-      
-    })
-    
-    tagList(
-      
-      h3("Key Findings"),
-      
-      HTML(
-        paste0(
-          "<p>Results for <b>",
-          input$response,
-          "</b> (",
-          year_text,
-          ").</p>"
-        )
-      ),
-      
-      interpretations
-      
     )
-    
   })
   
-  
+    
   output$emmeans_summary <- renderUI({
     
     req(results())
